@@ -1,0 +1,126 @@
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { getRateLimiter, getRateLimitIdentifier, isRateLimitingEnabled } from '@/lib/ratelimit';
+
+/**
+ * Next.js Middleware for rate limiting all API routes
+ * 
+ * This middleware intercepts all requests to /api/* routes and applies
+ * rate limiting based on the route type and user identity.
+ * 
+ * Rate limits:
+ * - /api/admin/*: 20 requests per minute
+ * - /api/discovery/*: 60 requests per minute
+ * - /api/leaderboard/*: 100 requests per minute
+ * - Other API routes: 30 requests per minute
+ * 
+ * Identification:
+ * - Authenticated users: Rate limited by user ID
+ * - Anonymous users: Rate limited by IP address
+ */
+export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  // Only apply rate limiting to API routes
+  if (!pathname.startsWith('/api/')) {
+    return NextResponse.next();
+  }
+
+  // Skip rate limiting for admin scraped tracks route (no limits for bulk operations)
+  if (pathname === '/api/admin/scraped-tracks') {
+    return NextResponse.next();
+  }
+
+  // Skip rate limiting if Redis is not configured
+  if (!isRateLimitingEnabled()) {
+    console.warn('[Middleware] Rate limiting skipped - Redis not configured');
+    return NextResponse.next();
+  }
+
+  try {
+    // Get user ID from Authorization header (without verification in middleware)
+    // Token will be verified in individual API routes if needed
+    let userId: string | undefined;
+    const authHeader = request.headers.get('authorization');
+    
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        // Extract user ID from token payload without verification (faster)
+        // Format: header.payload.signature
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          // Use atob (available in Edge Runtime) to decode base64
+          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+          userId = payload.user_id || payload.sub;
+        }
+      } catch (error) {
+        // Continue without user ID if token parsing fails
+        console.debug('[Middleware] Token parsing failed:', error);
+      }
+    }
+
+    // Get the appropriate rate limiter for this route
+    const rateLimiter = getRateLimiter(pathname);
+    
+    if (!rateLimiter) {
+      console.warn('[Middleware] No rate limiter found for path:', pathname);
+      return NextResponse.next();
+    }
+
+    // Get unique identifier for rate limiting
+    const identifier = getRateLimitIdentifier(request, userId);
+
+    // Check rate limit
+    const { success, limit, reset, remaining, pending } = await rateLimiter.limit(identifier);
+
+    // Add rate limit headers to response
+    const response = success ? NextResponse.next() : NextResponse.json(
+      {
+        error: 'Too many requests',
+        message: 'You have exceeded the rate limit. Please try again later.',
+        retryAfter: Math.ceil((reset - Date.now()) / 1000),
+      },
+      { status: 429 }
+    );
+
+    // Add rate limit information headers (useful for debugging and client-side handling)
+    response.headers.set('X-RateLimit-Limit', limit.toString());
+    response.headers.set('X-RateLimit-Remaining', remaining.toString());
+    response.headers.set('X-RateLimit-Reset', reset.toString());
+    
+    if (!success) {
+      const retryAfter = Math.ceil((reset - Date.now()) / 1000);
+      response.headers.set('Retry-After', retryAfter.toString());
+    }
+
+    // Wait for pending promises before returning
+    await pending;
+
+    return response;
+  } catch (error) {
+    // If rate limiting fails, allow the request to proceed
+    // This ensures the API remains functional even if rate limiting has issues
+    console.error('[Middleware] Rate limiting error:', error);
+    return NextResponse.next();
+  }
+}
+
+/**
+ * Configure which routes this middleware should run on
+ * 
+ * This matcher ensures the middleware only runs on API routes
+ * and skips static files, images, and Next.js internal routes
+ */
+export const config = {
+  matcher: [
+    /*
+     * Match all API routes except:
+     * - _next/static (static files)
+     * - _next/image (image optimization)
+     * - favicon.ico (favicon file)
+     */
+    '/api/:path*',
+  ],
+};
+
