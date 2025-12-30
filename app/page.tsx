@@ -24,7 +24,7 @@ export default function LandingPage() {
     <div className="flex min-h-screen bg-zinc-950 text-white overflow-hidden font-sans">
       <main className="flex-1 overflow-y-auto  p-8">
         <div className="flex flex-col mb-10">
-          <h2 className="text-4xl font-bold tracking-tight mb-4">Welcome to the Sounboard.</h2>
+          <h2 className="text-4xl font-bold tracking-tight mb-4">Welcome to Trackstar.</h2>
           <p className="text-xl max-w-3xl">The community-driven engine for music discovery. Cast your vote on random tracks and build the definitive leaderboard for the next generation of artists.</p>
         </div>
         <section className="mb-12">

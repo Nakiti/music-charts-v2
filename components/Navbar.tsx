@@ -51,9 +51,9 @@ export default function Navbar() {
             <Zap className="w-5 h-5 text-black fill-current" />
           </div>
           <span className="text-xl font-black tracking-tighter text-white">
-            SOUND
+            TRACK
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-sky-400">
-              BOARD
+              STAR
             </span>
           </span>
         </Link>

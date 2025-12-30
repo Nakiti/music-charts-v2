@@ -14,7 +14,7 @@ export default function ProfilePage() {
   >("uploads");
 
   const { username } = useParams<{ username: string }>();
-  const { user, profile: currentUserProfile } = useCurrentUser();
+  const { user, profile: currentUserProfile, loading: authLoading } = useCurrentUser();
   const {
     profile: viewedProfile,
     uploads,
@@ -29,7 +29,12 @@ export default function ProfilePage() {
     return <ProfileSignIn />
   }
 
-  if (loading) {
+  // Show sign in component if user is not logged in (after auth loading completes)
+  if (!authLoading && !user) {
+    return <ProfileSignIn />
+  }
+
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-purple-500/30">
         <div className="max-w-7xl mx-auto px-6 md:px-12 pt-24">

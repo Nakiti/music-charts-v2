@@ -12,15 +12,15 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 md:px-12 py-6">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-zinc-500 text-sm">
-            © {currentYear} SoundBoard. All rights reserved.
+            © {currentYear} Trackstar. All rights reserved.
           </p>
           <div className="flex items-center gap-6 text-sm">
-            <Link 
-              href="/contact" 
+            <a
+              href="mailto:nikhilakiti91@gmail.com"
               className="text-zinc-400 hover:text-white transition-colors"
             >
               Contact
-            </Link>
+            </a>
             <div className="flex items-center gap-2 text-zinc-500">
               <Music2 className="w-4 h-4" />
               <span>Made with ♥ for artists</span>

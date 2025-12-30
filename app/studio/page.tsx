@@ -101,6 +101,14 @@ export default function StudioPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Ensure user is authenticated before submitting
+    if (!user) {
+      setError("You must be logged in to upload tracks.");
+      router.push('/login');
+      return;
+    }
+    
     const trimmedUrl = url.trim();
     const trimmedTitle = title.trim();
     const trimmedArtist = artist.trim();
@@ -183,6 +191,11 @@ export default function StudioPage() {
         <Loader2 className="w-8 h-8 text-sky-500 animate-spin" />
       </div>
     );
+  }
+
+  // If not authenticated after loading, show nothing (redirect is happening)
+  if (!authLoading && !user) {
+    return null;
   }
 
   const embedSrc = isValidLink 
