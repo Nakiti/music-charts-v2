@@ -24,11 +24,37 @@ export default function GenreArenaPage() {
   const [voteAnimation, setVoteAnimation] = useState<"fire" | "pass" | null>(null);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [widgetReady, setWidgetReady] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobilePlayInitiated, setMobilePlayInitiated] = useState(false);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const widgetRef = useRef<any | null>(null);
 
+  // Detect mobile device
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+    };
+    setIsMobile(checkMobile());
+  }, []);
+
+  const soundcloudUrl = currentTrack?.meta?.externalId as string | undefined;
+  const dropTimeMs = (currentTrack?.meta?.dropTime ?? 15) * 1000;
+
   const togglePlay = useCallback(() => {
     const widget = widgetRef.current;
+
+    // First play requires user interaction (both mobile and desktop)
+    if (!hasUserInteracted && widget) {
+      setHasUserInteracted(true);
+      setMobilePlayInitiated(true);
+      widget.seekTo(dropTimeMs);
+      widget.play();
+      setIsPlaying(true);
+      return;
+    }
 
     if (!widget) {
       setIsPlaying((prev) => !prev);
@@ -42,10 +68,7 @@ export default function GenreArenaPage() {
       widget.play();
       setIsPlaying(true);
     }
-  }, [isPlaying]);
-
-  const soundcloudUrl = currentTrack?.meta?.externalId as string | undefined;
-  const dropTimeMs = (currentTrack?.meta?.dropTime ?? 15) * 1000;
+  }, [isPlaying, hasUserInteracted, dropTimeMs]);
 
   // Preload SoundCloud Widget API on mount to reduce first track load time
   useEffect(() => {
@@ -107,6 +130,10 @@ export default function GenreArenaPage() {
           setVoteAnimation(null);
           setHasVoted(false);
           setIsPlaying(true);
+          // Reset mobile play initiation when moving to next track
+          if (isMobile) {
+            setMobilePlayInitiated(false);
+          }
         }, 800);
       }
     },
@@ -166,6 +193,13 @@ export default function GenreArenaPage() {
     };
   }, [soundcloudUrl]);
 
+  // Reset play state when track changes (but keep hasUserInteracted)
+  useEffect(() => {
+    if (isMobile) {
+      setMobilePlayInitiated(false);
+    }
+  }, [soundcloudUrl, isMobile]);
+
   useEffect(() => {
     if (!soundcloudUrl || !iframeRef.current) return;
 
@@ -189,8 +223,30 @@ export default function GenreArenaPage() {
       widgetInstance.bind(SC.Widget.Events.READY, () => {
         if (widgetRef.current) {
           widgetRef.current.seekTo(dropTimeMs);
-          widgetRef.current.play();
-          setIsPlaying(true);
+          
+          // Desktop: Autoplay after first user interaction
+          // Mobile: Always require user interaction (autoplay blocked by browsers)
+          if (!isMobile && hasUserInteracted) {
+            widgetRef.current.play();
+            setIsPlaying(true);
+          } else {
+            // First track on desktop, or any track on mobile - waiting for user interaction
+            setIsPlaying(false);
+          }
+          
+          // Listen for play events to know when playback starts
+          widgetInstance.bind(SC.Widget.Events.PLAY, () => {
+            setIsPlaying(true);
+            if (!hasUserInteracted) {
+              setHasUserInteracted(true);
+            }
+          });
+          
+          // Listen for pause events
+          widgetInstance.bind(SC.Widget.Events.PAUSE, () => {
+            setIsPlaying(false);
+          });
+          
           setWidgetReady(true);
         }
       });
@@ -220,7 +276,7 @@ export default function GenreArenaPage() {
         script.parentNode.removeChild(script);
       }
     };
-  }, [soundcloudUrl, dropTimeMs]);
+  }, [soundcloudUrl, dropTimeMs, isMobile, hasUserInteracted]);
 
   if (loading) {
     return (
@@ -257,6 +313,9 @@ export default function GenreArenaPage() {
           iframeRef={iframeRef}
           coverUrl={coverUrl}
           widgetReady={widgetReady}
+          isMobile={isMobile}
+          mobilePlayInitiated={mobilePlayInitiated}
+          hasUserInteracted={hasUserInteracted}
         />
 
         <LiveActivitySidebar liveActivity={liveActivity} />

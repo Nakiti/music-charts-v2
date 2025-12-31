@@ -31,6 +31,9 @@ interface GenreArenaStageProps {
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
   coverUrl?: string | null;
   widgetReady?: boolean;
+  isMobile?: boolean;
+  mobilePlayInitiated?: boolean;
+  hasUserInteracted?: boolean;
 }
 
 const GenreArenaStage: React.FC<GenreArenaStageProps> = ({
@@ -46,8 +49,20 @@ const GenreArenaStage: React.FC<GenreArenaStageProps> = ({
   iframeRef,
   coverUrl,
   widgetReady = true,
+  isMobile = false,
+  mobilePlayInitiated = false,
+  hasUserInteracted = false,
 }) => {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  
+  // Mobile detection fallback (in case parent doesn't pass it)
+  const isMobileDevice = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+    return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+  }, []);
+  
+  const isOnMobile = isMobile || isMobileDevice;
 
   const trackTitle = currentTrack?.meta?.title || "Untitled Track";
   const trackCover = coverUrl || currentTrack?.meta?.cover || currentTrack?.cover || "";
@@ -117,6 +132,30 @@ const GenreArenaStage: React.FC<GenreArenaStageProps> = ({
                   Initializing player...
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* "Click to Start" Overlay */}
+          {/* Mobile: Shows on every track when not playing (autoplay blocked by browsers) */}
+          {/* Desktop: Shows only on first track when not playing, then autoplays subsequent tracks */}
+          {widgetReady && (isOnMobile || !hasUserInteracted) && !isPlaying && (
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-20 pointer-events-none">
+              <button
+                onClick={togglePlay}
+                className="flex flex-col items-center gap-4 p-8 rounded-2xl bg-white/10 hover:bg-white/20 border-2 border-white/30 backdrop-blur-md transition-all active:scale-95 shadow-2xl pointer-events-auto"
+              >
+                <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center shadow-lg">
+                  <Play className="w-10 h-10 text-white fill-current pl-1" />
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-white font-bold text-xl">
+                    {isOnMobile ? 'Tap to Play' : 'Click to Start'}
+                  </span>
+                  <span className="text-white/70 text-sm">
+                    {isOnMobile ? 'Start the track' : 'Begin playback'}
+                  </span>
+                </div>
+              </button>
             </div>
           )}
 
@@ -201,10 +240,10 @@ const GenreArenaStage: React.FC<GenreArenaStageProps> = ({
           style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
           scrolling="no"
           frameBorder="no"
-          allow="autoplay"
+          allow="autoplay *; encrypted-media *;"
           src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(
             soundcloudUrl
-          )}&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false&visual=false`}
+          )}&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false&visual=false&sharing=false&buying=false&mobile=${isOnMobile ? 'true' : 'false'}`}
         />
       )}
 
